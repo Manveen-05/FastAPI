@@ -1,0 +1,168 @@
+# Detailed Setup Steps
+
+### Step 1: Initial Dependency Installation Attempt
+- **Command Run:** `pip install fastapi uvicorn pydantic`
+- **Context:** Attempted to install the required dependencies (`fastapi`, `uvicorn`, `pydantic`). 
+- **Result:** The packages were found already satisfied in the global macOS Python environment (`/Library/Frameworks/Python.framework/Versions/3.14/...`) rather than the project's virtual environment.
+
+### Step 2: Virtual Environment Dependency Installation
+- **Command Run:** `/Users/manveensingh/Downloads/fastapi/.venv/bin/python -m pip install fastapi uvicorn pydantic`
+- **Context:** To ensure dependencies are correctly isolated for the project, the installation was explicitly run using the Python executable from the project's virtual environment (`.venv`).
+- **Result:** Successfully downloaded and installed `fastapi` (v0.136.1), `uvicorn` (v0.47.0), `pydantic` (v2.13.4), and their underlying dependencies properly inside the `.venv`.
+
+### Step 3: Navigating to the Project Directory
+- **Command Run:** `cd Ecommerce`
+- **Context:** Changed the current working directory from `FastApi` to the `Ecommerce` project folder to prepare for running the application.
+
+### Step 4: First Attempt to Run the Server
+- **Command Run:** `uvicorn app/main.py`
+- **Context:** Attempted to start the Uvicorn server by providing the file path to `main.py`.
+- **Result:** Failed with the following error:
+  `ERROR: Error loading ASGI app. Import string "app/main.py" must be in format "<module>:<attribute>".`
+  This occurred because Uvicorn expects a Python import string (e.g., `module:app_instance`) rather than a direct file path.
+
+### Step 5: Navigating to the App Directory
+- **Command Run:** `cd app`
+- **Context:** Changed directory into the `app` folder where the `main.py` file is explicitly located, making it easier to reference the module.
+
+### Step 6: Successfully Starting the Server
+- **Command Run:** `uvicorn main:app --reload`
+- **Context:** Ran the Uvicorn server using the correct import string format:
+  - `main`: Refers to the `main.py` file.
+  - `app`: Refers to the `FastAPI()` application instance created inside `main.py`.
+  - `--reload`: Enables hot-reloading so the server automatically restarts whenever code changes are saved.
+- **Result:** The FastAPI development server started successfully and is currently running.
+- **Testing Query:** `http://127.0.0.1:8000/` (Returns `{"message": "Hello World"}`)
+
+### Step 7: Fixing Type Mismatch in API Route
+- **Action:** Updated the `read_product` function in `main.py`.
+- **Context:** The route `/products/{product_id}` defined `product_id` as an integer, but the internal dictionary used string keys (`"1"`, `"2"`, `"3"`), causing lookups to fail and return `None`. 
+- **Result:** Changed the dictionary keys to integers and updated the return statement to include the fetched `product_name`.
+- **Testing Query:** `http://127.0.0.1:8000/products/1` (Returns details for the static product with ID 1)
+
+### Step 8: Resolving ImportError
+- **Action:** Fixed a mismatch in function names between `main.py` and `services/products.py`.
+- **Context:** The `main.py` file was attempting to import `get_all_products` from `services.products`, but the function was named `get_product_by_id`.
+- **Result:** Renamed the function in `services/products.py` to `get_all_products` to fix the `ImportError`. Also, updated the route decorator in `main.py` from `@app.get("/products/{product_id}")` to `@app.get("/products")` for the `get_products` function to prevent routing errors.
+
+### Step 9: Fixing 500 Internal Server Error (Missing Data File)
+- **Action:** Created the `app/data/products.json` file.
+- **Context:** Accessing `/products` threw a `FileNotFoundError` because the codebase expected a `products.json` file inside the `app/data` directory, which did not exist yet. This unhandled error led to a `500 Internal Server Error`.
+- **Result:** Created the missing `data` folder and the `products.json` file with some starter data, successfully resolving the server crash. (You subsequently added ~100 real product items to the file).
+
+### Step 10: Refactoring to Simplify Data Loading
+- **Action:** Moved JSON reading logic directly into `main.py`.
+- **Context:** You requested to stop using the separate `services/products.py` file to reduce unnecessary complexity.
+- **Result:** Updated `main.py` to load data directly from `app/data/products.json`, removing the dependency on the `services` folder entirely.
+
+### Step 11: Restoring services.products and Adding Search
+- **Action:** You brought back the `services/products.py` import, and introduced a new search feature using `FastAPI`'s `Query`.
+- **Context:** Decided to continue separating the concerns with the `services` folder structure and expand functionality with an optional `name` query parameter to filter the product list.
+- **Result:** Re-implemented `services.products.get_all_products`. Fixed a subsequent bug where the dictionary lookup `p["name", ""]` was throwing a `KeyError`, and an `UnboundLocalError` where the `total` variable was missing if `name` wasn't provided. 
+- **Testing Query:** `http://127.0.0.1:8000/products` (Returns the full list of products)
+- **Testing Query:** `http://127.0.0.1:8000/products?name=xiaomi` (Filters the products list by the search string)
+
+### Step 12: Broadening Search Scope to Fix Empty Results
+- **Action:** Updated the list comprehension in the `/products` endpoint to search across multiple product fields.
+- **Context:** The JSON dataset was updated with 100 new items. These new items didn't have simple names like "Laptop", so searching `?name=Laptop` returned 0 results because it only looked at the `name` field.
+- **Result:** Expanded the search logic to check `name`, `category`, `description`, and `tags`.
+- **Testing Query:** `http://127.0.0.1:8000/products?name=Laptop` (Now successfully returns 53 products since "laptop" appears in their tags and categories!)
+
+### Step 13: Adding Inline Code Comments
+- **Action:** Documented `main.py` and `services/products.py` with inline comments.
+- **Context:** To ensure long-term readability, each step of the data loading and querying logic was annotated.
+- **Result:** The codebase now explicitly explains how data is loaded from the JSON file and how the search filters operate.
+
+### Step 14: Adding Multiple Filters and Sorting Options
+- **Action:** Fixed syntactical errors in pasted code and integrated comprehensive filtering and sorting.
+- **Context:** Added `category`, `min_price`, `max_price`, and `rating` query parameters for filtering, along with boolean flags (`sort_by_price`, `sort_by_rating`, `sort_by_stock`) and a `sort_order` string (`asc`/`desc`) for sorting.
+- **Result:** Refactored the endpoint logic to efficiently apply all filters *before* sorting using Python's `sorted(..., reverse=reverse_sort)`.
+- **Testing Query:** `http://127.0.0.1:8000/products?category=laptops&min_price=10000&sort_by_price=true&sort_order=desc`
+
+### Step 15: Implementing Pagination (Limit and Offset)
+- **Action:** Added `limit` and `offset` query parameters.
+- **Context:** To prevent the API from returning too much data at once, pagination parameters were introduced.
+- **Result:** The endpoint now supports slicing the results using Python list slicing (`products[start:end]`), and returns both `total_results` (total matching the filters) and `returned_results` (number of items in the current page).
+- **Testing Query:** `http://127.0.0.1:8000/products?limit=5&offset=10`
+
+### Step 16: Adding Product ID Endpoint with Path Validation
+- **Action:** Added the `get_product_by_id` function and integrated FastAPI's `Path` parameter validation.
+- **Context:** Created the `/products/{product_id}` endpoint. To ensure invalid formats are rejected immediately, strict constraints were placed on the `product_id` path parameter (requiring it to be exactly 36 characters long, matching a UUID).
+- **Result:** Correctly imported `Path` from `fastapi` and built the route. If a product is not found, the API correctly raises a 404 HTTPException.
+- **Testing Query:** `http://127.0.0.1:8000/products/0005a4ea-ce3f-4dd7-bee0-f4ccc70fea6a` (Returns the JSON object for that exact product).
+
+### Step 17: Exploring the Swagger UI Docs
+- **Action:** Tested the API endpoints using FastAPI's built-in interactive Swagger UI.
+- **Context:** Navigated to the `/docs` endpoint to visually verify the newly added query parameters (limits, offsets, filters) and the UUID `Path` validation.
+- **Result:** The Swagger UI automatically updated to reflect all the rich documentation, default values, and validations integrated into `main.py`.
+
+### Step 18: Structuring the Data Models
+- **Action:** Created `app/schema/product.py` and defined the full `Product` model.
+- **Context:** Transitioned from dictionaries to structured Pydantic models. We looked at a sample product from the JSON file and added all the missing fields (`brand`, `discount_percent`, `is_active`, `tags`, `image_urls`, etc.). 
+- **Result:** Implemented nested models (`Dimensions`, `Seller`) and utilized advanced typing like `AnyUrl` to strictly validate data.
+
+### Step 19: Fixing Endpoint Return Types and Computed Fields
+- **Action:** Updated `main.py` routes to use the `Product` model.
+- **Context:** The `GET` endpoints were returning raw dictionaries, bypassing the Pydantic model logic, meaning computed properties like `final_price` were never generated. The `POST` endpoint wasn't typed, so Swagger couldn't infer the payload or response.
+- **Result:** Instantiated `Product(**p)` inside the `GET` endpoints to properly serialize the data. Annotated the `POST` endpoint with `product: Product -> Product`, fixing the Swagger documentation and input parsing.
+
+### Step 20: Fixing Swagger UI Default Examples
+- **Action:** Added `examples=[10]` to the `stock` field in the schema.
+- **Context:** The default Swagger UI generated an example with `"stock": 0` and `"is_active": true`, which violated a newly added business rule validator causing a 422 Unprocessable Content error.
+- **Result:** Overriding the default example ensures the endpoint can be tested out-of-the-box without manual JSON editing.
+
+### Step 21: Fixing Computed Field Precision
+- **Action:** Fixed the rounding logic in the `volume_cubic_meters` computed property.
+- **Context:** Using `round()` without specifying precision rounded small volume values (like phones or laptops) to `0`. 
+- **Result:** Changed the calculation to `round(..., 6)` to retain cubic centimeter precision, accurately displaying the volume for small electronic devices. Also patched a buggy string literal condition in the `validate_website` validator.
+
+### Step 22: Fixing Recursive Deletion Bug
+- **Action:** Resolved a `RecursionError` during product deletion.
+- **Context:** The endpoint function in `main.py` and the service function in `services/products.py` were both named `delete_product`, and the service function wasn't imported properly, causing the endpoint to call itself infinitely.
+- **Result:** Renamed the endpoint function to `remove_product` and explicitly imported `delete_product` from `services.products`.
+
+### Step 23: Adding Partial Updates for Products
+- **Action:** Implemented a general update endpoint (`PUT /products/{product_id}`).
+- **Context:** Wanted to allow updating specific product fields (including nested objects like seller and dimensions) without having to supply the entire product object.
+- **Result:** Created `ProductUpdate`, `SellerUpdate`, and `DimensionsUpdate` schemas with all fields set as `Optional`. Fixed a bug in `update_product` where dictionaries were being shallow-updated, allowing deep dictionary merging for nested properties.
+
+### Step 24: Implementing Stock Management Endpoint
+- **Action:** Created a dedicated `/products/{product_id}/stock` endpoint and restricted stock updates.
+- **Context:** Wanted a specific endpoint to increment/decrement stock using a `quantity` parameter (allowing negative numbers for deduction) rather than passing the stock amount inside the main product payload.
+- **Result:** Removed the `ge=0` constraint from the query parameter to allow negative values, created an `adjust_stock` service function to add/subtract relative to the current stock, and removed the `stock` field from the `ProductUpdate` schema to ensure stock is only manipulated through this dedicated endpoint.
+
+### Step 25: Switching to Production Dataset
+- **Action:** Updated the data file path in `services/products.py`.
+- **Context:** Transitioning from the temporary `dummy.json` to the main `products.json` dataset.
+- **Result:** Pointed `DATA_FILE` to `app/data/products.json`.
+
+### Step 26: Returning Database Path via JSONResponse
+- **Action:** Updated the root endpoint (`/`) to return a `JSONResponse` with the database path.
+- **Context:** Decided to load the database path using the `BASE_URL` environment variable from the `.env` file and return it as part of a structured JSON response.
+- **Result:** Modified the root endpoint in `main.py` to read `BASE_URL` using `os.getenv` and returned a 200 OK `JSONResponse` containing the path.
+
+### Step 27: Creating a Glassmorphic Streamlit Frontend
+- **Action:** Created a frontend application (`frontend.py`) and updated `requirements.txt`.
+- **Context:** Wanted a premium, glassmorphism dark-themed dashboard to visually manage catalog data and interact with backend CRUD/search features.
+- **Result:** Designed a beautiful UI using custom CSS injection over Streamlit's native components. Supported all filtering, sorting, pagination, stock adjustment, and form validation features.
+
+### Step 28: Resolving Button Alignment and Clean Sidebar
+- **Action:** Removed backend connection status box from sidebar. Styled Streamlit popovers and aligned popover/standard buttons vertically inside card layouts.
+- **Context:** User requested removing the connection box, fixing the text contrast of the popover button (which was white-on-white), and resolving button vertical misalignment inside product card grids.
+- **Result:** Targeted `div[data-testid="stPopover"] button` with glassmorphic styles and added `:has` selectors to vertically center button rows.
+
+### Step 29: Fixing Sidebar Dropdown Formatting
+- **Action:** Replaced generic input/select element styles with specific Streamlit wrapper classes.
+- **Context:** User noticed that the Category and Sort selectboxes had weird grey boxes inside, solid white background, and unreadable white-on-white text.
+- **Result:** Targeted `div[data-testid="stSelectbox"] [data-baseweb="select"]` and specific text inputs. Restored dark transparency, crisp white text color, and removed the internal React-Select cursor boxes.
+
+### Step 30: Redesigning Popover Modal Dialog Styles
+- **Action:** Targeted `div[data-testid="stPopoverBody"] > div` to apply dark glassmorphic styling to popover cards.
+- **Context:** User reported that the "Adjust Stock" popover container still had a white background, causing the light text labels and buttons inside to be unreadable.
+- **Result:** Applied a translucent dark background with indigo radial glow and custom spacing, forced text labels to light slate, and styled number input boxes and full-width actions.
+
+### Step 31: Fixing Stock Update API Bug
+- **Action:** Fixed `/products/{product_id}/stock` endpoint in `main.py` by removing the unused `payload: ProductUpdate` parameter and `ge=0` validation.
+- **Context:** User reported that stock adjustment was failing with a Pydantic body validation error.
+- **Result:** Allowed positive/negative adjustments, calculated new stock levels on the server side, checked that stock won't drop below 0, and persisted changes to the JSON database.
+
