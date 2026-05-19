@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 # API Base URL configuration
-API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
+API_URL = os.getenv("API_URL", "https://fastapi-2-70fy.onrender.com" or "http://127.0.0.1:8000")
 
 # Inject Custom CSS for Premium Glassmorphism & Dark Gradient Theme
 custom_css = """
